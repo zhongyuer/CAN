@@ -43,7 +43,7 @@ int		g_flag = 0;
 
 void print_usage(const char *progname);
 void send_can_message(const char *ifname, struct can_frame frame);
-void receive_can_message(const char *ifname, char *temp_humd);
+void receive_can_message(const char *ifname, char *temp_humd, size_t size);
 void mqtt_clean(struct mosquitto *mosq);
 void my_message_callback(struct mosquitto *mosq, void *obj, const struct mosquitto_message *msg);
 
@@ -69,7 +69,7 @@ int main(int argc, char **argv)
 	int					opt = 0;
 	int					index = 0;
 	const char	 		*ifname = NULL;
-	char				temp_humd[128];
+	char				temp_humd[256];
 
 	static struct option long_options[] =
 	{
@@ -187,15 +187,16 @@ int main(int argc, char **argv)
 
 			send_can_message(ifname, frame);			
 
-			while(1)
+			while(g_flag == 3) 
 			{
-				receive_can_message(ifname, temp_humd);
+				receive_can_message(ifname, temp_humd, sizeof(temp_humd));
 
 				if(mosquitto_publish(mosq, &mid1, conn_para.pub_topic, strlen(temp_humd), temp_humd, conn_para.qos, retain) != MOSQ_ERR_SUCCESS)
 				{	   
 					printf("mosquitto publish data failure: %s\n", strerror(errno));
 					continue;
 				}
+				printf("data: %s\n", temp_humd);
 			}
 		}
 
@@ -269,7 +270,7 @@ void send_can_message(const char *ifname, struct can_frame frame)
 	close(fd);
 }
 
-void receive_can_message(const char *ifname, char *temp_humd)
+void receive_can_message(const char *ifname, char *temp_humd, size_t size)
 {
 	int							fd;
 	int							nbytes = 0;
@@ -302,7 +303,7 @@ void receive_can_message(const char *ifname, char *temp_humd)
 		exit(1);
 	}
 
-	snprintf(temp_humd, sizeof(temp_humd),"{\"params\":{\"temperature\":%d.%d, \"Humidity\":%d.%d}}", frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
+	snprintf(temp_humd, size, "{\"params\":{\"Temperature\":%d.%d, \"Humidity\":%d.%d}}", frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
 
 	//printf("Receive CAN frame: ID:=0x%X, DLC=%d data=", frame.can_id, frame.can_dlc);
 	printf("%d.%d; %d.%d\n", frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
